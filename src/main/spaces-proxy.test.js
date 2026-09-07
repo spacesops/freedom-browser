@@ -60,6 +60,13 @@ describe('spaces-proxy', () => {
   test('parses encoded handle paths', () => {
     expect(parseProxyRequest({ url: '/void%40space/docs?q=1' })).toEqual({
       handle: 'void@space',
+      requestHost: 'void@space',
+      path: '/docs',
+      search: '?q=1',
+    });
+    expect(parseProxyRequest({ url: '/npub1abc.extra%40space/docs?q=1' })).toEqual({
+      handle: 'extra@space',
+      requestHost: 'npub1abc.extra@space',
       path: '/docs',
       search: '?q=1',
     });
@@ -79,6 +86,23 @@ describe('spaces-proxy', () => {
     const response = await request(target);
     expect(response.status).toBe(200);
     expect(response.body).toBe('void@space:/hello');
+
+    await new Promise((resolve) => upstream.server.close(resolve));
+  });
+
+  test('forwards dotted request hosts while binding ipv4 to the lookup handle', async () => {
+    const upstream = await listen((req, res) => {
+      res.writeHead(200, { 'content-type': 'text/plain' });
+      res.end(`${req.headers.host}:${req.url}`);
+    });
+
+    rememberSpacesBinding('extra@space', '127.0.0.1', upstream.port);
+    await startSpacesProxy();
+    const target = buildSpacesProxyUrl('npub1abc.extra@space', '/hello');
+
+    const response = await request(target);
+    expect(response.status).toBe(200);
+    expect(response.body).toBe('npub1abc.extra@space:/hello');
 
     await new Promise((resolve) => upstream.server.close(resolve));
   });

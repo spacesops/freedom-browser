@@ -196,6 +196,7 @@ describe('spaces-resolver', () => {
     expect(result).toEqual(expect.objectContaining({
       type: 'ok',
       handle: 'void@space',
+      requestHost: 'void@space',
       ipv4: '203.0.113.10',
       port: 80,
       scheme: 'http',
@@ -207,6 +208,46 @@ describe('spaces-resolver', () => {
       ipv4: '203.0.113.10',
       port: 80,
     });
+  });
+
+  test('looks up dotted Spaces names after the leftmost dot and proxies the full host', async () => {
+    const resolve = jest.fn(async (handle) => {
+      if (handle !== 'extra@space') {
+        return null;
+      }
+      return {
+        handle: 'extra@space',
+        toJson: () => ({
+          records: [{ type: 'addr', key: 'ipv4', value: ['203.0.113.10'] }],
+        }),
+      };
+    });
+    const { resolver, proxy } = loadResolver();
+    await proxy.startSpacesProxy();
+    resolver.setFabricLoader(async () => ({ resolve }));
+
+    const result = await resolver.resolveSpace('npub1abc.extra@space');
+
+    expect(resolve).toHaveBeenCalledWith('extra@space');
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      type: 'ok',
+      handle: 'extra@space',
+      requestHost: 'npub1abc.extra@space',
+      ipv4: '203.0.113.10',
+      source: 'fabric',
+    }));
+    expect(result.proxyUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/npub1abc\.extra%40space\/$/);
+    expect(proxy.getSpacesBinding('extra@space')).toEqual({
+      handle: 'extra@space',
+      ipv4: '203.0.113.10',
+      port: 80,
+    });
+
+    const prefixed = await resolver.resolveSpace('other.extra@space');
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(prefixed.requestHost).toBe('other.extra@space');
+    expect(prefixed.proxyUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/other\.extra%40space\/$/);
   });
 
   test('falls back to the public resolver when Fabric has no ipv4 record', async () => {

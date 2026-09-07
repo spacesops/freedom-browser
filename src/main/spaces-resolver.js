@@ -87,15 +87,17 @@ function extractIpv4(zone) {
   return values.find((value) => net.isIP(String(value)) === 4) || null;
 }
 
-async function attachProxyFields(result) {
+async function attachProxyFields(result, requestHost) {
   if (result?.type !== 'ok' || !result.ipv4) {
     return result;
   }
   rememberSpacesBinding(result.handle, result.ipv4, result.port || 80);
   await startSpacesProxy();
+  const proxyHost = requestHost || result.handle;
   return {
     ...result,
-    proxyUrl: buildSpacesProxyUrl(result.handle, '/'),
+    requestHost: proxyHost,
+    proxyUrl: buildSpacesProxyUrl(proxyHost, '/'),
   };
 }
 
@@ -119,7 +121,7 @@ async function resolveViaFabric(handle) {
     ? normalizeSpaceHandle(zone.handle)
     : handle;
 
-  return attachProxyFields({
+  return {
     type: 'ok',
     handle: resolvedHandle,
     canonicalHandle: resolvedHandle,
@@ -142,7 +144,7 @@ async function resolveViaFabric(handle) {
     operationClass: null,
     observationProvider: null,
     proofVerified: false,
-  });
+  };
 }
 
 async function resolveViaPublicResolver(handle) {
@@ -227,9 +229,10 @@ async function resolveSpace(handle) {
     throw new Error('Spaces handle must be name@space or @space without credentials or dotted space labels');
   }
   const normalizedHandle = parsed.handle;
+  const requestHost = parsed.requestHost || parsed.handle;
   const cached = spaceResultCache.get(normalizedHandle);
   if (cached && Date.now() - cached.timestamp < SPACES_CACHE_TTL_MS) {
-    return cached.result;
+    return attachProxyFields(cached.result, requestHost);
   }
 
   log.info(`[spaces] Resolving ${normalizedHandle}`);
@@ -238,13 +241,13 @@ async function resolveSpace(handle) {
     const fabricResult = await resolveViaFabric(normalizedHandle);
     if (fabricResult) {
       spaceResultCache.set(normalizedHandle, { result: fabricResult, timestamp: Date.now() });
-      return fabricResult;
+      return attachProxyFields(fabricResult, requestHost);
     }
 
     log.info(`[spaces] No Fabric ipv4 for ${normalizedHandle}, trying public resolver`);
     const result = await resolveViaPublicResolver(normalizedHandle);
     spaceResultCache.set(normalizedHandle, { result, timestamp: Date.now() });
-    return result;
+    return attachProxyFields(result, requestHost);
   } catch (err) {
     const result = {
       type: 'error',

@@ -40,6 +40,10 @@ function rememberSpacesBinding(handle, ipv4, port = 80) {
   return bindingsByHandle.get(parsed.handle);
 }
 
+function proxyPathHost(parsed) {
+  return parsed.requestHost || parsed.handle;
+}
+
 function getSpacesBinding(handle) {
   const parsed = parseSpacesHandleInput(handle);
   return parsed ? bindingsByHandle.get(parsed.handle) || null : null;
@@ -67,7 +71,7 @@ function buildSpacesProxyUrl(handle, suffix = '/') {
   if (!parsed || !listenPort) {
     return null;
   }
-  const base = `${getSpacesProxyOrigin()}/${encodeSpacesHandlePath(parsed.handle)}/`;
+  const base = `${getSpacesProxyOrigin()}/${encodeSpacesHandlePath(proxyPathHost(parsed))}/`;
   return applySpacesSuffix(base, suffix || parsed.suffix || '/');
 }
 
@@ -93,6 +97,7 @@ function parseProxyRequest(req) {
   const restPath = `/${segments.slice(1).join('/')}`;
   return {
     handle: parsed.handle,
+    requestHost: proxyPathHost(parsed),
     path: restPath === '/' && segments.length === 1 ? '/' : restPath,
     search: requestUrl.search,
   };
@@ -117,7 +122,7 @@ function forwardSpacesRequest(req, res, binding, parsed) {
       port: binding.port || 80,
       method: req.method,
       path: `${parsed.path === '/' ? '/' : parsed.path}${parsed.search || ''}`,
-      headers: copyForwardHeaders(req.headers, binding.handle),
+      headers: copyForwardHeaders(req.headers, parsed.requestHost || binding.handle),
     },
     (proxyRes) => {
       res.writeHead(proxyRes.statusCode || 502, proxyRes.headers);

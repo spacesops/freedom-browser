@@ -11,8 +11,38 @@
     return label.length > 0 && !/[\s/?#:@]/u.test(label);
   };
 
-  const buildResult = (handle, suffix, displayValue) => ({
+  const hasNonEmptyDotLabels = (value = '') => {
+    const label = String(value);
+    return Boolean(label) && !label.startsWith('.') && !label.endsWith('.') && !label.includes('..');
+  };
+
+  const splitSpacesHost = (rawLabel, rawSpace) => {
+    const label = normalizeLabel(rawLabel);
+    const space = normalizeLabel(rawSpace);
+    if (!isHandleLabel(label) || !isSpaceLabel(space) || !hasNonEmptyDotLabels(label)) {
+      return null;
+    }
+
+    const requestHost = `${label}@${space}`;
+    const dotIndex = label.indexOf('.');
+    if (dotIndex === -1) {
+      return { handle: requestHost, requestHost };
+    }
+
+    const subname = label.slice(dotIndex + 1);
+    if (!isHandleLabel(subname) || !hasNonEmptyDotLabels(subname)) {
+      return null;
+    }
+
+    return {
+      handle: `${subname}@${space}`,
+      requestHost,
+    };
+  };
+
+  const buildResult = (handle, requestHost, suffix, displayValue) => ({
     handle,
+    requestHost,
     suffix: suffix || '',
     displayValue,
   });
@@ -37,14 +67,20 @@
     if (!isSpaceLabel(parsed.hostname) || parsed.hostname.includes('.')) {
       return null;
     }
-    if (!isHandleLabel(parsed.username)) {
+
+    const split = splitSpacesHost(parsed.username, parsed.hostname);
+    if (!split) {
       return null;
     }
 
-    const handle = `${normalizeLabel(parsed.username)}@${normalizeLabel(parsed.hostname)}`;
     const suffix = `${parsed.pathname || ''}${parsed.search || ''}${parsed.hash || ''}`;
     const displaySuffix = suffix === '/' ? '' : suffix;
-    return buildResult(handle, suffix === '/' ? '/' : suffix, `${handle}${displaySuffix}`);
+    return buildResult(
+      split.handle,
+      split.requestHost,
+      suffix === '/' ? '/' : suffix,
+      `${split.requestHost}${displaySuffix}`
+    );
   };
 
   const parseBareSpacesInput = (value) => {
@@ -67,7 +103,7 @@
         return null;
       }
       const handle = `@${normalizeLabel(space)}`;
-      return buildResult(handle, suffix, `${handle}${suffix}`);
+      return buildResult(handle, handle, suffix, `${handle}${suffix}`);
     }
 
     const nameMatch = hostPart.match(/^([^@]+)@(.+)$/u);
@@ -75,13 +111,12 @@
       return null;
     }
 
-    const [, label, space] = nameMatch;
-    if (!isHandleLabel(label) || !isSpaceLabel(space)) {
+    const split = splitSpacesHost(nameMatch[1], nameMatch[2]);
+    if (!split) {
       return null;
     }
 
-    const handle = `${normalizeLabel(label)}@${normalizeLabel(space)}`;
-    return buildResult(handle, suffix, `${handle}${suffix}`);
+    return buildResult(split.handle, split.requestHost, suffix, `${split.requestHost}${suffix}`);
   };
 
   function parseSpacesHandleInput(raw) {

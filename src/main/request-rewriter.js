@@ -322,7 +322,7 @@ function registerRequestRewriter(targetSession) {
     const spacesInput = !isSpacesProxyUrl(details.url) ? parseSpacesHandleInput(details.url) : null;
     if (spacesInput) {
       Promise.resolve()
-        .then(() => require('./spaces-resolver').resolveSpace(spacesInput.handle))
+        .then(() => require('./spaces-resolver').resolveSpace(spacesInput.requestHost || spacesInput.handle))
         .then((result) => {
           if (result?.type === 'ok' && result.ipv4 && result.proxyUrl) {
             const redirectURL = applySpacesSuffix(result.proxyUrl, spacesInput.suffix);

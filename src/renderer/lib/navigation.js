@@ -741,7 +741,7 @@ export const loadTarget = (value, displayOverride = null, targetWebview = null) 
     const capturedWebview = webview;
     const capturedNavState = navState;
     const capturedNavContext = navContext;
-    const requestedHandle = spacesInput.handle || spacesInput.routeKey;
+    const requestedHandle = spacesInput.requestHost || spacesInput.handle || spacesInput.routeKey;
 
     if (!electronAPI?.resolveSpace) {
       loadSpacesResultPage({

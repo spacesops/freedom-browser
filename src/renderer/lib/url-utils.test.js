@@ -415,12 +415,14 @@ describe('url-utils', () => {
     test('parses root-only spaces input', () => {
       expect(parseSpacesRootInput('@space')).toEqual({
         handle: '@space',
+        requestHost: '@space',
         suffix: '',
         displayValue: '@space',
       });
 
       expect(parseSpacesRootInput('@😀')).toEqual({
         handle: '@😀',
+        requestHost: '@😀',
         suffix: '',
         displayValue: '@😀',
       });
@@ -429,13 +431,21 @@ describe('url-utils', () => {
     test('parses name@space handles and suffixes', () => {
       expect(parseSpacesHandleInput('void@space')).toEqual({
         handle: 'void@space',
+        requestHost: 'void@space',
         suffix: '',
         displayValue: 'void@space',
       });
       expect(parseSpacesHandleInput('@space/submit')).toEqual({
         handle: '@space',
+        requestHost: '@space',
         suffix: '/submit',
         displayValue: '@space/submit',
+      });
+      expect(parseSpacesHandleInput('npub1abc.extra@space/docs')).toEqual({
+        handle: 'extra@space',
+        requestHost: 'npub1abc.extra@space',
+        suffix: '/docs',
+        displayValue: 'npub1abc.extra@space/docs',
       });
     });
 
